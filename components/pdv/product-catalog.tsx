@@ -23,6 +23,7 @@ type Product = {
   _id: Id<"products">;
   name: string;
   priceCents: number;
+  stockQuantity?: number;
   photoUrl: string | null;
 };
 
@@ -33,15 +34,22 @@ type Props = {
     name: string;
     photoUrl: string | null;
     unitPriceCents: number;
+    stockQuantity?: number;
     quantity?: number;
   }) => void;
+  /** Map productId → quantidade já no carrinho. Usado pra limitar adições. */
+  cartQuantities: Map<string, number>;
 };
 
 /**
  * Grid de produtos com busca debounced e diálogo de quantidade
  * (acionado por long-press num card).
  */
-export function ProductCatalog({ searchInputRef, onAddProduct }: Props) {
+export function ProductCatalog({
+  searchInputRef,
+  onAddProduct,
+  cartQuantities,
+}: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedTerm, setDebouncedTerm] = useState("");
   const [qtyDialog, setQtyDialog] = useState<Product | null>(null);
@@ -83,23 +91,30 @@ export function ProductCatalog({ searchInputRef, onAddProduct }: Props) {
           <CatalogSkeleton />
         ) : products && products.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2 md:gap-2.5">
-            {products.map((product) => (
-              <ProductPdvCard
-                key={product._id}
-                name={product.name}
-                priceCents={product.priceCents}
-                photoUrl={product.photoUrl}
-                onTap={() =>
-                  onAddProduct({
-                    productId: product._id,
-                    name: product.name,
-                    photoUrl: product.photoUrl,
-                    unitPriceCents: product.priceCents,
-                  })
-                }
-                onLongPress={() => setQtyDialog(product)}
-              />
-            ))}
+            {products.map((product) => {
+              const inCart =
+                cartQuantities.get(product._id as unknown as string) ?? 0;
+              return (
+                <ProductPdvCard
+                  key={product._id}
+                  name={product.name}
+                  priceCents={product.priceCents}
+                  photoUrl={product.photoUrl}
+                  stockQuantity={product.stockQuantity}
+                  inCartQuantity={inCart}
+                  onTap={() =>
+                    onAddProduct({
+                      productId: product._id,
+                      name: product.name,
+                      photoUrl: product.photoUrl,
+                      unitPriceCents: product.priceCents,
+                      stockQuantity: product.stockQuantity,
+                    })
+                  }
+                  onLongPress={() => setQtyDialog(product)}
+                />
+              );
+            })}
           </div>
         ) : (
           <CatalogEmpty searching={isSearching} term={debouncedTerm} />

@@ -50,6 +50,16 @@ const schema = z.object({
       (v) => !v || parseBRLToCents(v) >= 0,
       "Preço de custo inválido",
     ),
+  // Estoque: opcional. String vazia = sem controle de estoque (ilimitado).
+  // Quando preenchido, deve ser um inteiro >= 0.
+  stockQuantityStr: z
+    .string()
+    .optional()
+    .refine((v) => !v || /^\d+$/.test(v.trim()), "Use só números inteiros")
+    .refine(
+      (v) => !v || parseInt(v.trim(), 10) >= 0,
+      "Estoque deve ser >= 0",
+    ),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -60,6 +70,7 @@ export type ProductFormProduct = {
   description?: string;
   priceCents: number;
   costPriceCents?: number;
+  stockQuantity?: number;
   photoUrl: string | null;
 };
 
@@ -99,6 +110,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       description: "",
       priceStr: "",
       costPriceStr: "",
+      stockQuantityStr: "",
     },
   });
 
@@ -113,9 +125,17 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           product.costPriceCents != null
             ? maskBRL(String(product.costPriceCents))
             : "",
+        stockQuantityStr:
+          product.stockQuantity != null ? String(product.stockQuantity) : "",
       });
     } else {
-      reset({ name: "", description: "", priceStr: "", costPriceStr: "" });
+      reset({
+        name: "",
+        description: "",
+        priceStr: "",
+        costPriceStr: "",
+        stockQuantityStr: "",
+      });
     }
     setSelectedPhoto(null);
   }, [open, product, reset]);
@@ -149,6 +169,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       const costPriceCents = values.costPriceStr?.trim()
         ? parseBRLToCents(values.costPriceStr)
         : undefined;
+      const stockQuantity = values.stockQuantityStr?.trim()
+        ? parseInt(values.stockQuantityStr.trim(), 10)
+        : undefined;
 
       if (isEdit && product) {
         await updateProduct({
@@ -157,6 +180,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           description,
           priceCents,
           costPriceCents,
+          stockQuantity,
           ...(photoStorageId ? { photoStorageId } : {}),
         });
         toast.success("Produto atualizado!");
@@ -166,6 +190,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           description,
           priceCents,
           costPriceCents,
+          stockQuantity,
           photoStorageId,
         });
         toast.success("Produto cadastrado!");
@@ -185,6 +210,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   const priceStr = watch("priceStr");
   const costPriceStr = watch("costPriceStr");
+  const stockQuantityStr = watch("stockQuantityStr");
 
   return (
     <Dialog open={open} onOpenChange={(o) => onOpenChange(o)}>
@@ -273,6 +299,35 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
               )}
             </Field>
           </div>
+
+          <Field>
+            <Label htmlFor="product-stock">Estoque</Label>
+            <Input
+              id="product-stock"
+              inputMode="numeric"
+              placeholder="Ilimitado"
+              aria-invalid={isSubmitted && !!errors.stockQuantityStr}
+              value={stockQuantityStr ?? ""}
+              onChange={(e) =>
+                setValue(
+                  "stockQuantityStr",
+                  e.target.value.replace(/\D/g, ""),
+                  { shouldValidate: isSubmitted },
+                )
+              }
+            />
+            <FieldDescription>
+              Quantidade disponível. Deixe vazio para venda sem controle
+              (ilimitado). Decrementa automaticamente em cada venda.
+            </FieldDescription>
+            {isSubmitted && (
+              <FieldError
+                errors={
+                  errors.stockQuantityStr ? [errors.stockQuantityStr] : []
+                }
+              />
+            )}
+          </Field>
 
           <Field>
             <Label>Foto</Label>

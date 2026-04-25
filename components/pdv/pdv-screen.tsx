@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import Link from "next/link";
 import {
@@ -69,6 +69,16 @@ export function PdvScreen({ kioskMode = false }: Props) {
   const openInNewTab = useCallback(() => {
     window.open("/pdv?kiosk=1", "_blank", "noopener,noreferrer");
   }, []);
+
+  // Map productId → quantidade já no carrinho (pra catálogo desabilitar
+  // cards quando o estoque limite for atingido).
+  const cartQuantities = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const item of cart.state.items) {
+      m.set(item.productId as unknown as string, item.quantity);
+    }
+    return m;
+  }, [cart.state.items]);
 
   const finalizeDisabled =
     cart.state.items.length === 0 || !cart.state.paymentMethod;
@@ -275,6 +285,7 @@ export function PdvScreen({ kioskMode = false }: Props) {
           <ProductCatalog
             searchInputRef={searchInputRef}
             onAddProduct={cart.addProduct}
+            cartQuantities={cartQuantities}
           />
         </main>
         <aside className="hidden w-96 shrink-0 border-l bg-card lg:flex lg:flex-col xl:w-[420px]">

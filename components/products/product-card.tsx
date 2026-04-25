@@ -24,6 +24,7 @@ export type ProductCardItem = {
   description?: string;
   priceCents: number;
   costPriceCents?: number;
+  stockQuantity?: number;
   active: boolean;
   photoUrl: string | null;
 };
@@ -91,6 +92,24 @@ export function ProductCard({ product, onEdit, onArchive }: Props) {
             className="absolute left-2 top-2 bg-background/90 backdrop-blur"
           >
             Arquivado
+          </Badge>
+        )}
+
+        {product.stockQuantity !== undefined && (
+          <Badge
+            variant="secondary"
+            className={cn(
+              "absolute bottom-2 left-2 backdrop-blur tabular-nums shadow-sm",
+              product.stockQuantity === 0
+                ? "bg-destructive/15 text-destructive border-destructive/20"
+                : product.stockQuantity <= 5
+                  ? "bg-warning/15 text-warning border-warning/20"
+                  : "bg-background/90",
+            )}
+          >
+            {product.stockQuantity === 0
+              ? "Esgotado"
+              : `${product.stockQuantity} em estoque`}
           </Badge>
         )}
 

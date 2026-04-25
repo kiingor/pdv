@@ -26,6 +26,13 @@ export default defineSchema({
      * Usado pelo relatório de margem; ausente em produtos legados.
      */
     costPriceCents: v.optional(v.number()),
+    /**
+     * Estoque atual disponível para venda.
+     * `undefined` = sem controle de estoque (vende ilimitado, ex: bebidas servidas).
+     * `0` = esgotado (PDV bloqueia o tap no card).
+     * Decrementa automaticamente em cada venda completed.
+     */
+    stockQuantity: v.optional(v.number()),
     /** Soft-delete: false esconde do PDV mas mantém histórico. */
     active: v.boolean(),
     /** Timestamp ms (Date.now()). _creationTime já é nativo. */

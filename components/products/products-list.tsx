@@ -77,6 +77,7 @@ export function ProductsList() {
       description: product.description,
       priceCents: product.priceCents,
       costPriceCents: product.costPriceCents,
+      stockQuantity: product.stockQuantity,
       photoUrl: product.photoUrl,
     });
     setFormOpen(true);

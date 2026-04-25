@@ -65,7 +65,8 @@ export const create = mutation({
     }
 
     // Pré-processa todos os itens: lê o produto, snapshota nome e preço,
-    // calcula subtotal. Erro aqui aborta a mutation inteira (atomicidade).
+    // calcula subtotal, e agrega qty por produto (pra validar estoque).
+    // Erro aqui aborta a mutation inteira (atomicidade do Convex).
     type ResolvedItem = {
       productId: Id<"products">;
       productName: string;
@@ -75,6 +76,11 @@ export const create = mutation({
     };
 
     const resolved: ResolvedItem[] = [];
+    // Cache de produto + soma de qty (caso o mesmo productId apareça +1x).
+    const productAgg = new Map<
+      string,
+      { product: Doc<"products">; totalQty: number }
+    >();
     let totalCents = 0;
     let itemCount = 0;
 
@@ -82,21 +88,41 @@ export const create = mutation({
       if (item.quantity <= 0) {
         throw new Error("Quantidade do item deve ser maior que zero");
       }
-      const product = await ctx.db.get(item.productId);
-      if (!product) {
-        throw new Error("Produto não encontrado");
+
+      const key = item.productId as unknown as string;
+      let entry = productAgg.get(key);
+      if (!entry) {
+        const product = await ctx.db.get(item.productId);
+        if (!product) throw new Error("Produto não encontrado");
+        entry = { product, totalQty: 0 };
+        productAgg.set(key, entry);
       }
-      const unitPriceCents = item.unitPriceCents ?? product.priceCents;
+      entry.totalQty += item.quantity;
+
+      const unitPriceCents = item.unitPriceCents ?? entry.product.priceCents;
       const subtotalCents = unitPriceCents * item.quantity;
       resolved.push({
         productId: item.productId,
-        productName: product.name,
+        productName: entry.product.name,
         unitPriceCents,
         quantity: item.quantity,
         subtotalCents,
       });
       totalCents += subtotalCents;
       itemCount += item.quantity;
+    }
+
+    // Validação de estoque: só pra produtos com `stockQuantity` definido.
+    // (`undefined` = ilimitado, ex: bebidas servidas; pula a checagem.)
+    for (const [, entry] of productAgg) {
+      if (entry.product.stockQuantity !== undefined) {
+        if (entry.totalQty > entry.product.stockQuantity) {
+          throw new Error(
+            `Estoque insuficiente de "${entry.product.name}". ` +
+              `Disponível: ${entry.product.stockQuantity}, pedido: ${entry.totalQty}.`,
+          );
+        }
+      }
     }
 
     // Insere o header da venda.
@@ -122,16 +148,65 @@ export const create = mutation({
       });
     }
 
+    // Decrementa estoque dos produtos com controle ativo.
+    const now = Date.now();
+    for (const [, entry] of productAgg) {
+      if (entry.product.stockQuantity !== undefined) {
+        await ctx.db.patch(entry.product._id, {
+          stockQuantity: entry.product.stockQuantity - entry.totalQty,
+          updatedAt: now,
+        });
+      }
+    }
+
     return { saleId, totalCents };
   },
 });
 
-/** Cancela uma venda (não apaga). Status fica "cancelled". */
+/**
+ * Cancela uma venda (não apaga). Status fica "cancelled".
+ * Restaura o estoque dos produtos com controle ativo.
+ * Idempotente: cancelar venda já cancelada é no-op (não dobra o estoque).
+ */
 export const cancel = mutation({
   args: { id: v.id("sales") },
   handler: async (ctx, { id }) => {
     const sale = await ctx.db.get(id);
     if (!sale) throw new Error("Venda não encontrada");
+    if (sale.status === "cancelled") return; // idempotente
+
+    const items = await ctx.db
+      .query("saleItems")
+      .withIndex("by_sale", (q) => q.eq("saleId", id))
+      .collect();
+
+    // Agrega qty por productId (preserva o tipo Id<"products">).
+    const restock = new Map<
+      string,
+      { productId: Id<"products">; qty: number }
+    >();
+    for (const item of items) {
+      const key = item.productId as unknown as string;
+      const cur = restock.get(key);
+      if (cur) {
+        cur.qty += item.quantity;
+      } else {
+        restock.set(key, { productId: item.productId, qty: item.quantity });
+      }
+    }
+
+    // Restaura estoque dos produtos com controle ativo.
+    const now = Date.now();
+    for (const [, { productId, qty }] of restock) {
+      const product = await ctx.db.get(productId);
+      if (product?.stockQuantity !== undefined) {
+        await ctx.db.patch(productId, {
+          stockQuantity: product.stockQuantity + qty,
+          updatedAt: now,
+        });
+      }
+    }
+
     await ctx.db.patch(id, { status: "cancelled" });
   },
 });

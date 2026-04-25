@@ -112,6 +112,7 @@ export const create = mutation({
     photoStorageId: v.optional(v.id("_storage")),
     priceCents: v.number(),
     costPriceCents: v.optional(v.number()),
+    stockQuantity: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("products", {
@@ -120,6 +121,7 @@ export const create = mutation({
       photoStorageId: args.photoStorageId,
       priceCents: args.priceCents,
       costPriceCents: args.costPriceCents,
+      stockQuantity: args.stockQuantity,
       active: true,
       updatedAt: Date.now(),
     });
@@ -136,6 +138,7 @@ export const update = mutation({
     photoStorageId: v.optional(v.id("_storage")),
     priceCents: v.optional(v.number()),
     costPriceCents: v.optional(v.number()),
+    stockQuantity: v.optional(v.number()),
     active: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -147,6 +150,31 @@ export const update = mutation({
     }
     clean.updatedAt = Date.now();
     await ctx.db.patch(id, clean);
+  },
+});
+
+/**
+ * Ajuste manual de estoque (ex: reposição). Aceita delta positivo ou negativo.
+ * Para produtos sem controle de estoque (`stockQuantity` undefined), passar
+ * delta cria o controle a partir desse valor (clamped em zero se negativo).
+ *
+ * Não permite estoque negativo.
+ */
+export const adjustStock = mutation({
+  args: {
+    id: v.id("products"),
+    delta: v.number(),
+  },
+  handler: async (ctx, { id, delta }) => {
+    const product = await ctx.db.get(id);
+    if (!product) throw new Error("Produto não encontrado");
+    const current = product.stockQuantity ?? 0;
+    const next = Math.max(0, current + delta);
+    await ctx.db.patch(id, {
+      stockQuantity: next,
+      updatedAt: Date.now(),
+    });
+    return next;
   },
 });
 

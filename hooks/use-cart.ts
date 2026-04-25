@@ -10,6 +10,8 @@ export type CartItem = {
   photoUrl: string | null;
   unitPriceCents: number;
   quantity: number;
+  /** Estoque disponível no momento da adição. Null/undefined = ilimitado. */
+  stockQuantity?: number;
 };
 
 export type CartState = {
@@ -28,6 +30,7 @@ type Action =
         name: string;
         photoUrl: string | null;
         unitPriceCents: number;
+        stockQuantity?: number;
         quantity?: number;
       };
     }
@@ -62,20 +65,42 @@ const initialState: CartState = {
 function reducer(state: CartState, action: Action): CartState {
   switch (action.type) {
     case "ADD_PRODUCT": {
-      const { productId, name, photoUrl, unitPriceCents } = action.payload;
+      const { productId, name, photoUrl, unitPriceCents, stockQuantity } =
+        action.payload;
       const qty = action.payload.quantity ?? 1;
       const idx = state.items.findIndex((it) => it.productId === productId);
+
+      // Validação de estoque (se controlado).
+      const limit = stockQuantity;
+      const currentInCart = idx >= 0 ? state.items[idx].quantity : 0;
+      if (limit !== undefined && currentInCart + qty > limit) {
+        // Bloqueia silenciosamente — o card já é desabilitado quando atinge.
+        // Mantém estado anterior pra não confundir.
+        return state;
+      }
+
       if (idx >= 0) {
         const next = [...state.items];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty };
-        // Move o item para o topo pra manter o "recém-mexido" visível.
+        next[idx] = {
+          ...next[idx],
+          quantity: next[idx].quantity + qty,
+          // Atualiza stockQuantity se mudou no backend.
+          stockQuantity: stockQuantity ?? next[idx].stockQuantity,
+        };
         const [moved] = next.splice(idx, 1);
         return { ...state, items: [moved, ...next] };
       }
       return {
         ...state,
         items: [
-          { productId, name, photoUrl, unitPriceCents, quantity: qty },
+          {
+            productId,
+            name,
+            photoUrl,
+            unitPriceCents,
+            quantity: qty,
+            stockQuantity,
+          },
           ...state.items,
         ],
       };
@@ -90,11 +115,17 @@ function reducer(state: CartState, action: Action): CartState {
     case "INCREASE_QTY":
       return {
         ...state,
-        items: state.items.map((it) =>
-          it.productId === action.payload.productId
-            ? { ...it, quantity: it.quantity + 1 }
-            : it
-        ),
+        items: state.items.map((it) => {
+          if (it.productId !== action.payload.productId) return it;
+          // Respeita limite de estoque se houver.
+          if (
+            it.stockQuantity !== undefined &&
+            it.quantity + 1 > it.stockQuantity
+          ) {
+            return it;
+          }
+          return { ...it, quantity: it.quantity + 1 };
+        }),
       };
     case "DECREASE_QTY":
       return {
@@ -115,9 +146,15 @@ function reducer(state: CartState, action: Action): CartState {
       }
       return {
         ...state,
-        items: state.items.map((it) =>
-          it.productId === productId ? { ...it, quantity } : it
-        ),
+        items: state.items.map((it) => {
+          if (it.productId !== productId) return it;
+          // Trunca pelo estoque disponível (ou usa quantity se ilimitado).
+          const capped =
+            it.stockQuantity !== undefined
+              ? Math.min(quantity, it.stockQuantity)
+              : quantity;
+          return { ...it, quantity: capped };
+        }),
       };
     }
     case "SET_UNIT_PRICE":
@@ -161,6 +198,7 @@ export function useCart() {
       name: string;
       photoUrl: string | null;
       unitPriceCents: number;
+      stockQuantity?: number;
       quantity?: number;
     }) => dispatch({ type: "ADD_PRODUCT", payload }),
     []
