@@ -90,7 +90,7 @@ export function ProductCatalog({
         {isLoading ? (
           <CatalogSkeleton />
         ) : products && products.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2 md:gap-2.5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 md:gap-3.5">
             {products.map((product) => {
               const inCart =
                 cartQuantities.get(product._id as unknown as string) ?? 0;
@@ -142,15 +142,15 @@ export function ProductCatalog({
 
 function CatalogSkeleton() {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2 md:gap-2.5">
-      {Array.from({ length: 18 }).map((_, i) => (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 md:gap-3.5">
+      {Array.from({ length: 12 }).map((_, i) => (
         <Card key={i} className="gap-0 py-0">
           <div className="aspect-square w-full p-1.5">
             <Skeleton className="h-full w-full rounded-md" />
           </div>
-          <div className="space-y-1.5 px-2 pb-2">
-            <Skeleton className="h-3 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
+          <div className="space-y-1.5 px-2.5 pb-2.5">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-5 w-1/2" />
           </div>
         </Card>
       ))}

@@ -165,7 +165,7 @@ export function ProductPdvCard({
         {hasStockControl && (
           <Badge
             className={cn(
-              "absolute right-1 top-1 px-1.5 py-0 text-[10px] tabular-nums shadow-sm",
+              "absolute right-1.5 top-1.5 px-2 py-0.5 text-[11px] tabular-nums shadow-sm",
               disabled
                 ? "bg-destructive text-destructive-foreground"
                 : remaining <= 5
@@ -177,9 +177,9 @@ export function ProductPdvCard({
           </Badge>
         )}
       </div>
-      <div className="px-2 pb-2">
-        <p className="line-clamp-2 text-xs font-semibold leading-tight">{name}</p>
-        <p className="mt-0.5 text-sm font-bold text-primary tabular-nums">
+      <div className="px-2.5 pb-2.5">
+        <p className="line-clamp-2 text-sm font-semibold leading-snug">{name}</p>
+        <p className="mt-1 text-base font-bold text-primary tabular-nums">
           {formatBRL(priceCents)}
         </p>
       </div>
