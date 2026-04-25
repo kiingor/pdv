@@ -1,11 +1,27 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Eye, Search } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Eye,
+  MoreVertical,
+  Pencil,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -37,6 +53,8 @@ type SortDir = "asc" | "desc";
 type Props = {
   sales: SaleRow[];
   onViewDetails?: (sale: SaleRow) => void;
+  onEdit?: (sale: SaleRow) => void;
+  onDelete?: (sale: SaleRow) => void;
 };
 
 const PAGE_SIZE = 50;
@@ -45,7 +63,7 @@ const PAGE_SIZE = 50;
  * Tabela de vendas com sort por data, paginação simples ("ver mais") e
  * variação responsiva (cards no mobile, tabela em md+).
  */
-export function SalesTable({ sales, onViewDetails }: Props) {
+export function SalesTable({ sales, onViewDetails, onEdit, onDelete }: Props) {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
@@ -137,14 +155,12 @@ export function SalesTable({ sales, onViewDetails }: Props) {
                     {formatBRL(s.totalCents)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label="Ver detalhes"
-                      onClick={() => onViewDetails?.(s)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
+                    <SaleActionsMenu
+                      sale={s}
+                      onViewDetails={onViewDetails}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                    />
                   </TableCell>
                 </TableRow>
               );
@@ -191,14 +207,12 @@ export function SalesTable({ sales, onViewDetails }: Props) {
                     {formatNumber(s.itemCount)} item
                     {s.itemCount === 1 ? "" : "s"}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onViewDetails?.(s)}
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    Detalhes
-                  </Button>
+                  <SaleActionsMenu
+                    sale={s}
+                    onViewDetails={onViewDetails}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
                 </div>
               </Card>
             </li>
@@ -229,4 +243,58 @@ function SortIcon({ dir }: { dir: SortDir | null }) {
   if (dir === "asc") return <ArrowUp className="h-3.5 w-3.5" />;
   if (dir === "desc") return <ArrowDown className="h-3.5 w-3.5" />;
   return <ArrowUpDown className="h-3.5 w-3.5" />;
+}
+
+function SaleActionsMenu({
+  sale,
+  onViewDetails,
+  onEdit,
+  onDelete,
+}: {
+  sale: SaleRow;
+  onViewDetails?: (sale: SaleRow) => void;
+  onEdit?: (sale: SaleRow) => void;
+  onDelete?: (sale: SaleRow) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Ações da venda de ${formatBRL(sale.totalCents)}`}
+          />
+        }
+      >
+        <MoreVertical className="h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {onViewDetails && (
+          <DropdownMenuItem onClick={() => onViewDetails(sale)}>
+            <Eye className="h-4 w-4" />
+            Ver detalhes
+          </DropdownMenuItem>
+        )}
+        {onEdit && (
+          <DropdownMenuItem onClick={() => onEdit(sale)}>
+            <Pencil className="h-4 w-4" />
+            Editar
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => onDelete(sale)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Excluir
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

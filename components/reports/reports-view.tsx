@@ -34,6 +34,9 @@ import {
   type ReportFilterValues,
 } from "./report-filters";
 import { SalesTable, type SaleRow } from "./sales-table";
+import { SaleDetailDialog } from "./sale-detail-dialog";
+import { EditSaleDialog } from "./edit-sale-dialog";
+import { DeleteSaleDialog } from "./delete-sale-dialog";
 
 type CustomerLite = {
   _id: Id<"customers">;
@@ -128,6 +131,9 @@ export function ReportsView() {
 
 function SalesTab({ range }: { range: DateRange }) {
   const [filters, setFilters] = useState<ReportFilterValues>({});
+  const [detailSaleId, setDetailSaleId] = useState<Id<"sales"> | null>(null);
+  const [editSaleId, setEditSaleId] = useState<Id<"sales"> | null>(null);
+  const [deleteSale, setDeleteSale] = useState<SaleRow | null>(null);
 
   const customers = useQuery(api.customers.list, {}) as
     | CustomerLite[]
@@ -188,11 +194,15 @@ function SalesTab({ range }: { range: DateRange }) {
   }
 
   function handleViewDetails(sale: SaleRow) {
-    // TODO: abrir dialog com itens da venda. Por hora apenas log.
-    console.log("Ver detalhes da venda", sale);
-    toast.info(`Venda #${String(sale._id).slice(-6)}`, {
-      description: `${formatBRL(sale.totalCents)} · ${sale.itemCount} itens`,
-    });
+    setDetailSaleId(sale._id);
+  }
+
+  function handleEdit(sale: SaleRow) {
+    setEditSaleId(sale._id);
+  }
+
+  function handleDelete(sale: SaleRow) {
+    setDeleteSale(sale);
   }
 
   const filterChips = useMemo(
@@ -281,8 +291,26 @@ function SalesTab({ range }: { range: DateRange }) {
       {isLoading ? (
         <TableSkeleton />
       ) : (
-        <SalesTable sales={tableRows} onViewDetails={handleViewDetails} />
+        <SalesTable
+          sales={tableRows}
+          onViewDetails={handleViewDetails}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
       )}
+
+      <SaleDetailDialog
+        saleId={detailSaleId}
+        onOpenChange={(open) => !open && setDetailSaleId(null)}
+      />
+      <EditSaleDialog
+        saleId={editSaleId}
+        onOpenChange={(open) => !open && setEditSaleId(null)}
+      />
+      <DeleteSaleDialog
+        sale={deleteSale}
+        onOpenChange={(open) => !open && setDeleteSale(null)}
+      />
     </div>
   );
 }

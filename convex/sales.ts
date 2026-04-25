@@ -164,6 +164,101 @@ export const create = mutation({
 });
 
 /**
+ * Atualiza metadados da venda (cliente, forma de pgto, notes).
+ * NÃO mexe em itens — pra mudar produtos/qty/preço de uma venda, o fluxo
+ * correto é deletar e recriar.
+ *
+ * Snapshota o `customerName` se o customerId mudou.
+ */
+export const updateMeta = mutation({
+  args: {
+    id: v.id("sales"),
+    customerId: v.optional(v.union(v.id("customers"), v.null())),
+    paymentMethod: v.optional(paymentMethodValidator),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const sale = await ctx.db.get(args.id);
+    if (!sale) throw new Error("Venda não encontrada");
+
+    const patch: Partial<Doc<"sales">> = {};
+
+    if (args.customerId !== undefined) {
+      if (args.customerId === null) {
+        patch.customerId = undefined;
+        patch.customerName = undefined;
+      } else {
+        const customer = await ctx.db.get(args.customerId);
+        if (!customer) throw new Error("Cliente não encontrado");
+        patch.customerId = args.customerId;
+        patch.customerName = customer.name;
+      }
+    }
+
+    if (args.paymentMethod !== undefined) {
+      patch.paymentMethod = args.paymentMethod;
+    }
+
+    if (args.notes !== undefined) {
+      patch.notes = args.notes.trim() || undefined;
+    }
+
+    await ctx.db.patch(args.id, patch);
+  },
+});
+
+/**
+ * Hard delete: apaga a venda e todos os saleItems do banco.
+ * Restaura estoque APENAS se a venda ainda estava "completed" (vendas
+ * canceladas já tiveram estoque restaurado no `cancel`).
+ *
+ * Use com cautela — vendas apagadas somem do histórico e dos relatórios.
+ */
+export const remove = mutation({
+  args: { id: v.id("sales") },
+  handler: async (ctx, { id }) => {
+    const sale = await ctx.db.get(id);
+    if (!sale) throw new Error("Venda não encontrada");
+
+    const items = await ctx.db
+      .query("saleItems")
+      .withIndex("by_sale", (q) => q.eq("saleId", id))
+      .collect();
+
+    // Restaura estoque só pra vendas que ainda estavam ativas.
+    if (sale.status === "completed") {
+      const restock = new Map<
+        string,
+        { productId: Id<"products">; qty: number }
+      >();
+      for (const item of items) {
+        const key = item.productId as unknown as string;
+        const cur = restock.get(key);
+        if (cur) cur.qty += item.quantity;
+        else restock.set(key, { productId: item.productId, qty: item.quantity });
+      }
+
+      const now = Date.now();
+      for (const [, { productId, qty }] of restock) {
+        const product = await ctx.db.get(productId);
+        if (product?.stockQuantity !== undefined) {
+          await ctx.db.patch(productId, {
+            stockQuantity: product.stockQuantity + qty,
+            updatedAt: now,
+          });
+        }
+      }
+    }
+
+    // Apaga itens, depois a venda.
+    for (const item of items) {
+      await ctx.db.delete(item._id);
+    }
+    await ctx.db.delete(id);
+  },
+});
+
+/**
  * Cancela uma venda (não apaga). Status fica "cancelled".
  * Restaura o estoque dos produtos com controle ativo.
  * Idempotente: cancelar venda já cancelada é no-op (não dobra o estoque).
