@@ -84,8 +84,8 @@ export function MarginBySaleView({ startMs, endMs }: Props) {
         <div className="flex justify-end">
           <Skeleton className="h-10 w-36" />
         </div>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
@@ -129,13 +129,24 @@ export function MarginBySaleView({ startMs, endMs }: Props) {
         </Button>
       </div>
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Kpi
           label="Itens vendidos"
           value={formatNumber(totals.itemCount)}
           hint={`${formatNumber(totals.lineCount)} linha${totals.lineCount === 1 ? "" : "s"}`}
         />
         <Kpi label="Receita" value={formatBRL(totals.revenueCents)} />
+        <Kpi
+          label="Custo total"
+          value={
+            totals.costCents === null ? "—" : formatBRL(totals.costCents)
+          }
+          hint={
+            totals.costCents === null
+              ? "Sem custo cadastrado"
+              : `${formatNumber(totals.itemsWithCostCount)} de ${formatNumber(totals.lineCount)} itens com custo`
+          }
+        />
         <Kpi
           label="Lucro"
           value={
@@ -209,7 +220,12 @@ type Totals = {
   lineCount: number;
   itemCount: number;
   revenueCents: number;
+  /** Soma dos custos (qty * costPriceCents) dos itens que têm custo cadastrado.
+   *  Null se nenhum item do período tem custo. */
+  costCents: number | null;
   profitCents: number | null;
+  /** Quantos itens (linhas) têm custo cadastrado — usado pra hint do KPI. */
+  itemsWithCostCount: number;
   adjustedCount: number;
   adjustedUpCount: number;
   adjustedDownCount: number;
@@ -218,7 +234,9 @@ type Totals = {
 function computeTotals(rows: SaleItemMarginRow[]): Totals {
   let itemCount = 0;
   let revenueCents = 0;
+  let costCents = 0;
   let profitCents = 0;
+  let itemsWithCostCount = 0;
   let anyWithCost = false;
   let adjustedUp = 0;
   let adjustedDown = 0;
@@ -226,8 +244,12 @@ function computeTotals(rows: SaleItemMarginRow[]): Totals {
   for (const r of rows) {
     itemCount += r.quantity;
     revenueCents += r.subtotalCents;
-    if (r.totalProfitCents !== null) {
+    if (r.totalCostCents !== null) {
       anyWithCost = true;
+      costCents += r.totalCostCents;
+      itemsWithCostCount += 1;
+    }
+    if (r.totalProfitCents !== null) {
       profitCents += r.totalProfitCents;
     }
     if (r.priceVsCatalogCents > 0) adjustedUp += 1;
@@ -238,7 +260,9 @@ function computeTotals(rows: SaleItemMarginRow[]): Totals {
     lineCount: rows.length,
     itemCount,
     revenueCents,
+    costCents: anyWithCost ? costCents : null,
     profitCents: anyWithCost ? profitCents : null,
+    itemsWithCostCount,
     adjustedCount: adjustedUp + adjustedDown,
     adjustedUpCount: adjustedUp,
     adjustedDownCount: adjustedDown,
